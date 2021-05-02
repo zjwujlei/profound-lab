@@ -9,7 +9,7 @@ pubspec.yaml文件定义了项目类型，Flutter、Dart等版本，依赖库和
 ```yaml
 flutter:
   plugin:
-    androidPackage: com.wedoctor.jgt.map
+    androidPackage: ${packageName}
     pluginClass: WrapperMapPlugin
 ```
 对于plugin项目，会通过plugin指明，并提供androidPackage和pluginClass。
@@ -20,8 +20,8 @@ flutter:
 flutter:
   module:
     androidX: true
-    androidPackage: com.wedoctor.nanping.health
-    iosBundleIdentifier: com.wedoctor.nanping.health
+    androidPackage: ${packageName}
+    iosBundleIdentifier: ${bundleId}
 ```
 对于modulemodule项目，会通过modulemodule指明，并提供androidPackage等信息。
 
