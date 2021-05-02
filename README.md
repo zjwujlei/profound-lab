@@ -18,7 +18,7 @@ Profound Android开发学习笔记
 
 ### Android-JNI-Linux
 - [Android JNI使用三方库入门](./Android-JNI-Linux/Android JNI使用三方库入门/Android JNI使用三方库入门.md)
-- [Android高效数据存储-mmap](/Android-JNI-Linux/Android高效文件存储实现-mmap/Android高效文件存储实现-mmap.md)
+- [Android高效数据存储-mmap](./Android-JNI-Linux/Android高效文件存储实现-mmap/Android高效文件存储实现-mmap.md)
 - [共享内存Ashmen](./Android-JNI-Linux/共享内存Ashmem/Android共享内存实践.md)
 - [JNI开发内存释放学习笔记](./Android-JNI-Linux/共享内存Ashmem/JNI开发内存释放学习记录 .md)
 
