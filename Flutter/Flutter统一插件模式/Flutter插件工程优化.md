@@ -1,13 +1,58 @@
-Flutter插件工程优化 - FlutterInAction分享稿
+Flutter统一插件工程优化 
 =================
 
+### 目标
 一次开发、一个配置文件、一行命令，完成一个插件的完整接入。
 
+### 一般项目插件存续情况
+
+套用淘系技术Flutter分享第六期中说法，我们对插件的开发模式就是普通程序员的写法。
+
+![normal_coder](./normal_coder.png)
+
+
+我们最进程的开发模式中，功能插件都是通过对现有能力封装实现，在保持单独插件功能的独立的前提下进行开发，特别是对于重复代码，并没有考虑到CodeGen方案。因此我们的插件工程会以下几点问题：
+
+1. 对于Plugin工程，dart和native的开发是混在一起，开发同学同时开两个工程进行开发。
+2. 当前我们没法做到一个开发者同时为维护iOS和Android的代码，一个Plugin工程同时有Dart、iOS、Android三个源码库，对我们来说过于复杂了，多人开发容易发生开发者误提交代码引起的问题。
+3. 我们的插件基本都是基于原有功能SDK封装而来，对于插件中Native层代码还是有SDK开发同学维护更加合适。
+4. 每引入一个插件，都会引入一个Android源码项目，对于复杂项目会极速膨胀。
+5. 对于使用到的外部开源插件，在不更改pubspec.yaml文件是是完全不需要重新基于源码编译的。
+
+
+### 理想中的插件项目
+
+针对上述问题我们提出如下的项目插件维护方案：
+
+
+![ower_plugin](./ower_plugin.png)
+
+##### 插件工程开发模式的优化
+对于内部插件我们将dart和平台原生分离，wrapper工程只包括平台原生代码。
+
+我们基于功能SDK来开发Wrapper工程，SDK是全平台统一的，但对于SDK的接入部分涉及到常量、上下文环境获取等可能会不同，这部分可以由同一个人维护。
+
+我们将所有插件的dart层统一到一个Channel Plugin Project的工程中，专门负责桥接相关工作。这里引入CodeGen来规范统一三端的接口协议。具体能力实现通过AAR/静态库的方式依赖Wrapper工程。这部涉及到的平台原生代码十分简单只是调用，只要Wrapper工程能力够用，理想状态下可以考虑三端由同一人员维护。
+
+同时通过这种方式分离之后，我们可以在Channel Plugin Project中提供功能的默认实现，这样即使不依赖全量Wrapper工程也可以进行开发。
+
+##### 打包编译的优化
+对于APP中国Android开发时参与编译的源码库过多拖慢速度的问题，对于内部插件通过dart和native分离后，所有Wrapper工程都是通过AAR形式依赖，只存在Channel Plugin Project一个源码工程。
+
+对于外部插件，我们通过工具对于源码生成中间AAR库来优化，该方案可通过修改Flutter构建过程的Gradle脚本实现。
+
+
+##### Channel的优化
+
+采用官方Flutter Channel+Pigeon来构建Channel。
+
+
+Pigeon是今年3月份Fluter官方发布的CodeGen方案，主要是用来规范插件的开发。通过在dart脚本自动生成一致的多端接口。本身不依赖Flutter SDK版本。但并没有解决Flutter Channel低效的问题。
 ### 插件工程拆分
 
 对于Flutter提供的插件实现，对于每一个功能单独封装插件工程，会导致我们的工程急剧膨胀。在淘系的分享中将这种做法称为普通的实现方式。相对的就会有高级的实现，对于高级实现，我们将所有功能插件都聚合到一个插件工程中。这种做法避免了工程的膨胀，当这种聚合的插件工程失去了插件的公用性，这样的一个聚合插件工程没法在多APP之间公用，每个APP的需要的插件基本是不一致的。同时淘系的分享中也提出了他们的‘艺术程序员’的实现方式，使用FFI来提升性能，通过Code_gen来生成功能接口，对于FFI的实现和功能的具体实现再进行开发。
 
-结合淘系的分享与我们的实际情况，我们决定采用聚合插件的方式，通是通过全面代码生成的方式来保证其公共性。在对于一个插件工程的代码我们从上到下依次划分为：1.桥接层、2.胶水层、3.原生功能层三部分。然后对官方的Pigeon方案进行扩展，我们将三部分的代码统一到一个dart文件中，然后通过一个命令来完成Channel构建、功能实现、接入的工作，大大减小了插件使用的复杂度。
+结合淘系的分享与我们的实际开发情况，我们可以采用聚合插件的方式，同时通过全面代码生成的方式来保证其公共性。在对于一个插件工程的代码我们从上到下依次划分为：1.桥接层、2.胶水层、3.原生功能层三部分。然后对官方的Pigeon方案进行扩展，我们将三部分的代码统一到一个dart文件中，然后通过一个命令来完成Channel构建、功能实现、接入的工作，大大减小了插件使用的复杂度。
 
 ###### 桥接层
 Flutter和原生的通信实现，如果用官方的MethodChannel，就是Channel的原生及Flutter实现。
@@ -38,402 +83,3 @@ Flutter和原生的通信实现，如果用官方的MethodChannel，就是Channe
 我们整一个架构入上。我们有一个plugin config repo的库。用来开发我们想要的插件，这本身时候一个聚合插件工程，我们在这个聚合插件工程中维护dart配置文件。
 
 但我们需要在某个工程里引入一个插件功能的时候，只需要在改聚合工程下执行“flutter pub run flagon --input=./flagons/geetest.dart”命令即可完成接入。
-
-### 附录一
-
-极验插件的dart配置文件
-
-```dart
-import 'package:flagon/ast.dart';
-import 'package:flagon/flagon_lib.dart';
-
-
-@ApiGlue(platform: 'Android',fileName: 'WrapperToolUtil.java')
-const WRAPPER_TOOL_UTIL = '''package com.wedoctor.guahao.wrapper_geetest;
-
-import android.content.Context;
-import android.content.SharedPreferences;
-
-import com.greenline.wyapptrackmodule.EventManager;
-import com.guahao.android.utils.WYAppConfigUtils;
-import com.guahao.android.utils.WYStringUtils;
-
-import java.util.regex.Pattern;
-
-public class WrapperToolUtil {
-    private static final String TAG = "ToolUtil";
-
-    public static boolean isAllZero(String str){
-        if (WYStringUtils.isNotNull(str)) {
-            Pattern pattern = Pattern.compile("[0]*");
-            return pattern.matcher(str).matches();
-        } else {
-            return false;
-        }
-    }
-
-    public static String getDeviceId(Context context) {
-        if (context == null){
-            return "";
-        }
-        SharedPreferences phoneInfo = context.getSharedPreferences("phoneInfo", 0);
-        String deviceId = phoneInfo.getString("deviceId", null);
-        if (deviceId == null || "".equals(deviceId) || isAllZero(deviceId)) {
-            deviceId = WYAppConfigUtils.getDeviceId(context);
-
-            if (deviceId == null || "".equals(deviceId) || isAllZero(deviceId)) {
-                //uuid替代deviceid
-                deviceId =  EventManager.getUUID(context);
-            }
-            phoneInfo.edit().putString("deviceId", deviceId).commit();
-        }
-        return deviceId;
-    }
-}
-
-''';
-
-@ApiGlue(platform: 'Android',fileName: 'WrapperProcessResponse.java')
-const WRAPPER_PROCESS_RESPONSE = '''package com.wedoctor.guahao.wrapper_geetest;
-
-import com.greenline.guahao.common.server.okhttp.JSONResponse;
-
-import org.json.JSONObject;
-
-public class WrapperProcessResponse extends JSONResponse {
-    public String serialNumber;
-    //是否使用极验证 0：否 1：是
-    public boolean isPolarVerification;
-
-
-    public WrapperProcessResponse(JSONObject object) throws Exception {
-        super(object);
-        parse(object);
-    }
-
-    private void parse(JSONObject obj) throws Exception {
-        JSONObject jsonObject = obj.optJSONObject("item");
-        serialNumber = jsonObject.optString("serialNumber");
-        isPolarVerification = jsonObject.optInt("polarVerification") == 1 ? true : false;
-    }
-}
-''';
-
-@ApiGlue(platform: 'Android',fileName: 'WrapperProcessRequest.java')
-const WRAPPER_PROCESS_REQUEST = '''package com.wedoctor.guahao.wrapper_geetest;
-
-import com.greenline.guahao.common.server.okhttp.SimplifyJSONRequest;
-
-import org.json.JSONException;
-import org.json.JSONObject;
-
-public class WrapperProcessRequest extends SimplifyJSONRequest<WrapperProcessResponse> {
-    //客户端sessionId
-    private String mSessionId;
-    //业务类型
-    private int mBusinessType;
-    //账户
-    private String mAccountName;
-
-    private int mUserType;
-
-    public WrapperProcessRequest(String sessionId, int businessType, String accountName, int userType) {
-        this.mSessionId = sessionId;
-        this.mBusinessType = businessType;
-        this.mAccountName = accountName;
-        this.mUserType = userType;
-    }
-
-    @Override
-    protected String url() {
-        return WrapperGeetestPlugin.PRE_PROCESS_CHECK;
-    }
-
-    @Override
-    protected String body() throws JSONException {
-        JSONObject obj = new JSONObject();
-        obj.put("sessionId", mSessionId);
-        obj.put("businessType", mBusinessType);
-        obj.put("accountName", mAccountName);
-        obj.put("userType", mUserType);
-        return obj.toString();
-    }
-
-    @Override
-    protected WrapperProcessResponse result(JSONObject json) throws Exception {
-        return new WrapperProcessResponse(json);
-    }
-}
-''';
-
-@ApiGlue(platform: 'Android',fileName: 'WrapperGeeTestHelper.java')
-const WRAPPER_GEETEST_HELPER = '''package com.wedoctor.guahao.wrapper_geetest;
-
-import android.content.Context;
-import android.util.Log;
-
-import com.geetest.sdk.GT3ConfigBean;
-import com.geetest.sdk.GT3ErrorBean;
-import com.geetest.sdk.GT3GeetestUtils;
-import com.geetest.sdk.GT3Listener;
-import com.guahao.android.utils.WYLogUtils;
-
-import org.json.JSONException;
-import org.json.JSONObject;
-
-public class WrapperGeeTestHelper {
-    private static final String TAG = "WrapperGeeTestHelper";
-    private GT3GeetestUtils mGT3GeetestUtils;
-    private OnFinishedSDKCallback mCallback;
-    private String mSid;
-    private GT3ConfigBean mGT3ConfigBean;
-    private Context mContext;
-
-    private WrapperGeeTestHelper(Context context, String sid, String challenge, OnFinishedSDKCallback callback) {
-        this.mSid = sid;
-        this.mCallback = callback;
-        this.mContext = context;
-        mGT3GeetestUtils = new GT3GeetestUtils(context);
-        mGT3ConfigBean = new GT3ConfigBean();
-        initGT3ConfigBean();
-        mGT3GeetestUtils.init(mGT3ConfigBean);
-        // 开启验证
-        mGT3GeetestUtils.startCustomFlow();
-        try {
-            JSONObject jsonObject = new JSONObject(challenge);
-            mGT3ConfigBean.setApi1Json(jsonObject);
-        } catch (JSONException e) {
-            WYLogUtils.e(TAG, "WrapperGeeTestHelper----------: " + e.getMessage(), e);
-        }
-    }
-
-    private void initGT3ConfigBean() {
-        // 设置验证模式，1：bind；2：unbind
-        mGT3ConfigBean.setPattern(1);
-        // 设置点击灰色区域是否消失，默认不消失
-        mGT3ConfigBean.setCanceledOnTouchOutside(false);
-        // 设置语言，如果为null则使用系统默认语言
-        mGT3ConfigBean.setLang(null);
-        // 设置加载webview超时时间，单位毫秒，默认10000。仅且webview加载静态文件超时，不包括之前的http请求
-        mGT3ConfigBean.setTimeout(10000);
-        // 设置webview请求超时（，前端请求后端用户点选或滑动完成接口），单位毫秒，默认10000
-        mGT3ConfigBean.setWebviewTimeout(10000);
-        mGT3ConfigBean.setListener(mGT3Listener);
-    }
-
-    private GT3Listener mGT3Listener = new GT3Listener() {
-        /**
-         * 验证加载完成
-         * @param duration 加载时间和版本等信息，为json格式
-         */
-        @Override
-        public void onDialogReady(String duration) {
-            super.onDialogReady(duration);
-            WYLogUtils.d(TAG, "onDialogReady: -------:" + duration);
-        }
-
-        /**
-         * 验证结果
-         * @param result
-         */
-        @Override
-        public void onDialogResult(String result) {
-            WYLogUtils.d(TAG, "onDialogResult: -------:" + result);
-            try {
-                JSONObject res_json = new JSONObject(result);
-                String challenge = res_json.getString("geetest_challenge");
-                String validate = res_json.getString("geetest_validate");
-                String seccode = res_json.getString("geetest_seccode");
-                res_json.put("sessionId", mSid)
-                        .put("challenge", challenge)
-                        .put("validate", validate)
-                        .put("seccode", seccode);
-                mGT3GeetestUtils.showSuccessDialog();
-                if (mCallback != null) {
-                    mCallback.onSuccess(res_json);
-                }
-            } catch (JSONException e) {
-                mGT3GeetestUtils.showFailedDialog();
-                mCallback.onFailure();
-            }
-        }
-
-        /**
-         * 统计信息，参考接入文档
-         * @param result
-         */
-        @Override
-        public void onStatistics(String result) {
-            WYLogUtils.d(TAG, "onStatistics: -------:" + result);
-        }
-
-        /**
-         * 验证被关闭
-         * @param num
-         */
-        @Override
-        public void onClosed(int num) {
-            WYLogUtils.d(TAG, "onClosed: ------:" + num);
-        }
-
-        /**
-         * 验证成功回调
-         * @param s
-         */
-        @Override
-        public void onSuccess(String s) {
-            WYLogUtils.d(TAG, "onSuccess: -------:" + s);
-            mGT3GeetestUtils.showSuccessDialog();
-        }
-
-        /**
-         * 验证失败回调
-         * @param gt3ErrorBean 版本号、错误码、错误描述等信息
-         */
-        @Override
-        public void onFailed(GT3ErrorBean gt3ErrorBean) {
-            WYLogUtils.d(TAG, "onFailed: --------:" + gt3ErrorBean.toString());
-            mGT3GeetestUtils.showFailedDialog();
-        }
-
-        /**
-         * api1回调
-         */
-        @Override
-        public void onButtonClick() {
-            WYLogUtils.d(TAG, "onButtonClick: -------");
-        }
-    };
-
-    /**
-     * 执行极验
-     */
-    public void launchGeetest() {
-        mGT3GeetestUtils.getGeetest();
-    }
-
-    /**
-     * 极验SDK内部完成验证后，将相关数据传出。
-     */
-    public interface OnFinishedSDKCallback {
-        void onSuccess(JSONObject jsonObject);
-
-        void onFailure();
-    }
-
-    public static class Builder {
-        private Context mContext;
-        private String mSid;
-        private String mChallenge;
-        private OnFinishedSDKCallback mCallback;
-
-        public Builder setContext(Context context) {
-            this.mContext = context;
-            return this;
-        }
-
-        public Builder setSid(String sid) {
-            this.mSid = sid;
-            return this;
-        }
-
-        public Builder setChallenge(String Challenge) {
-            this.mChallenge = Challenge;
-            return this;
-        }
-
-        public Builder setOnFinishedSDKCallback(OnFinishedSDKCallback callback) {
-            this.mCallback = callback;
-            return this;
-        }
-
-        public WrapperGeeTestHelper build() {
-            if (mContext == null) {
-                throw new IllegalArgumentException("context can not be null");
-            }
-            return new WrapperGeeTestHelper(mContext, mSid, mChallenge, mCallback);
-        }
-    }
-}
-''';
-
-const LAUNCH_GEETEST_CODE = '''final Activity activity;
-            if (mActivity == null || (activity = mActivity.get()) == null) {
-                WYLogUtils.w(TAG, "onMethodCall: launchGeetest[activity已销毁]");
-                return;
-            }
-
-            final String sessionId = WrapperToolUtil.getDeviceId(activity) + SystemClock.currentThreadTimeMillis();
-            int businessType = call.argument("businessType");
-            String accountName = call.argument("accountName");
-            int userType = call.argument("userType");
-
-            new WrapperProcessRequest(sessionId, businessType, accountName, userType).schedule(new SimplifyJSONListener<WrapperProcessResponse>() {
-                @Override
-                public void onSuccess(WrapperProcessResponse processResponse) {
-                    if (processResponse.isPolarVerification) {
-                        launchGeetest(activity, sessionId, processResponse.serialNumber, result);
-                    } else {
-                        Map<String, Object> data = new HashMap<>();
-                        data.put("polarVerification", 0);
-                        result.success(data);
-                    }
-                }
-
-                @Override
-                public void onFailed(Throwable e) {
-                    result.error("-1", "网络异常，请求失败", "网络异常，请求失败");
-                }
-            });
-''';
-
-class GeetestRequest{
-  int businessType;
-  String accountName;
-  int userType = 0;
-}
-
-class GeetestResponse{
-  int result;
-}
-
-@DependenceLibrary()
-class Dependencies{
-  static String androidDependencies = '''android {
-
-    dependencies {
-        //极验证
-        compileOnly 'com.geetest.sensebot:sensebot:4.2.1'
-
-        implementation "com.guahao.android:net-client:1.6.4.9-SNAPSHOT"
-        implementation 'com.squareup.okhttp3:okhttp:3.11.0'
-        implementation 'io.reactivex.rxjava2:rxandroid:2.0.1'
-        implementation 'io.reactivex.rxjava2:rxjava:2.0.1'
-        implementation 'com.guahao.android:wyapptrack:0.2.0-SNAPSHOT'
-    }
-} 
-''';
-  static String iOSDependencies = '''
-''';
-}
-
-@ImplImport(platform: 'Android',statement: 'import io.flutter.embedding.engine.FlutterEngine;')
-@HostApi()
-abstract class GeeTest{
-  @ApiImpl(code: LAUNCH_GEETEST_CODE,platform: 'Android')
-  GeetestResponse launchGeetest(GeetestRequest request);
-
-}
-
-void configureFlagon(FlagonOptions opts) {
-  opts.dartOut = './lib/geetest.dart';
-  opts.objcHeaderOut = 'ios/Classes/GeeTest.h';
-  opts.objcSourceOut = 'ios/Classes/Geetest.m';
-  opts.objcOptions.prefix = 'FLT';
-  opts.javaOut =
-  'android/src/main/java/com/profound/geetest/Geetest.java';
-  opts.javaOptions.package = 'com.profound.geetest';
-  opts.gradleOut='android/geetest.gradle';
-}
-
-```

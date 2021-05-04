@@ -51,6 +51,7 @@ Profound Android开发学习笔记
 - [FlutterSDK源码分析](./Flutter/FlutterSDK源码分析/Flutter 源码分析.md)
 - [Flutter Command-line分析](./Flutter/FlutterSDK源码分析/Flutter Command-line分析.md)
 - [Flutter下Tangram实现动态化](./Flutter/Tangram-Flutter/Tangram-Flutter.md)
+- [Flutter统一插件模式](./Flutter/Flutter统一插件模式/Flutter插件工程优化.md)
 
 ### RN 相关学习笔记
 - [RN 安卓侧源码阅读记要](./react-native/RN Android侧源码阅读/RN 安卓侧源码阅读记要.md)
