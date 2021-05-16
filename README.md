@@ -40,6 +40,7 @@ Profound Android开发学习笔记
 - [基于V2签名的渠道包生成方案](./Android/基于V2签名方案的渠道包生成方案/基于V2签名方案的渠道包生成方案.md)
 - [权限申请分析](./Android/权限申请分析/权限适配说明.md)
 - [webview资源缓存方案分析](./Android/opt-webview/optwebview.md)
+- [Android架构组件Jetpack](./Android/Android架构组件Jetpack使用记录/Android架构组件Jetpack.md)
 
 ### Flutter 相关学习笔记
 - [dart:mirrors库及注解Metadata](./Flutter/Dart进阶之路/dart反射mirrors库及注解Metadata.md)
@@ -63,6 +64,7 @@ Profound Android开发学习笔记
 - [Java线程池使用介绍](./kotlin、Java/Java线程池介绍/Java线程池使用介绍.md)
 - [类加载机制](./kotlin、Java/JVM虚拟机学习笔记/类加载机制.md)
 - [使用KTNative开发核心逻辑可行性](./kotlin、Java/kotlinNative/KTNative落地分析.md)
+- [kotlin、协程语法及实现](./kotlin、Java/kotlin、协程语法及实现/kotlin、协程语法及实现.md)
 
 ### 前端相关
 - [vue入门学习笔记](./前端/vue学习笔记/vue入门学习笔记.md)
