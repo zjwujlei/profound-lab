@@ -672,7 +672,7 @@ public final class MainKt {
 
 可以看到并没有线程切换。通过launch等个创建一个协程时，实际上是BuildersKt.runBlocking$default()函数，将协程内执行代码包装成Function2。
 
-我们看下BuildersKt的实现，在kotlinx-coroutines-core-jvm-1.3.9.jar中。这里有个点，在AS中直接打开BuildersKt没法看到所有代码。这个是反编译工具的问题。这里可以通过dadx-gui打开。也可以去github上个查看源码。
+我们看下BuildersKt的实现，在kotlinx-coroutines-core-jvm-1.3.9.jar中。这里有个点，在AS中直接打开BuildersKt没法看到所有代码，这个是反编译工具的问题。这里可以通过jadx-gui打开。也可以去github上个查看源码。
 
 
 ###### 作用域CoroutineScope
@@ -871,6 +871,42 @@ initFlow返回的是一个Flow对象，后续的操作符、collect等都和冷�
 ###### 线程调度
 在RxJava中，subscribeOn指定的调度器影响前面的预约逻辑线程，observeOn影响的是后面的观察逻辑，在kotlin的flow中，线程的调度使用flowOn来切换上游执行的的线程，相当于subscribeOn。collect函数调用所在的额协程对于的线程就是观察逻辑线程，相当于observeOn。
 
+###### 协程async/await
+
+我们使用协程时，在不切换线程下，是在同一线程下执行的。我们通过创建协程和挂起函数实现协程的调度，使其达到并发的效果。这种实现的异步是在利用线程执行的阻断等待的时间，但如果前一协程没有挂起操作，后一协程就会一直等待前一协程完成，本质上和多线程的并发是有区别的。想要实现多线程类似的就需要进行线程调度。
+
+那如果在同一协程下，想要实现并发的效果的话。我们就需要用到async/await了。
+
+```
+suspend fun value1(): Int {
+    delay(1000)
+    println("1")
+    return 1
+}
+
+suspend fun value2(): Int {
+    delay(1000)
+    println("2")
+    return 2
+}
+
+@InternalCoroutinesApi
+fun main() {
+    runBlocking {
+
+            val value1 = async{
+                value1()
+            }
+            val value2 = async{
+                value2()
+            }
+            println("the result is ${value1.await() + value2.await()}")
+    }
+}
+
+```
+
+
 
 ###### 背压
 背压是指消费者处理消息的速率低于生产者产生消息的速率的情况。这里好比我们的页面的掉帧，系统屏幕硬件发出的vsync就是生成者生产消息，CPU+GPU处理排版绘制上屏逻辑就是消费者，当排版绘制上屏逻辑逻辑耗时草果16ms，就会形成背压导致掉帧。
@@ -916,3 +952,325 @@ Java中有Thread.uncaughtExceptionHandler来做全局的异常捕获，协助中
 
 当我们要实现单向传播时，可以使用SupervisorJob和supervisorScope。相对于Job，SupervisorJob 的取消只会向下传播。supervisorScope 是用来替代coroutineScope ，它只会单向的传播并且当作业自身执行失败的时候将所有子作业全部取消。作业自身也会在所有的子作业执行结束前等待， 就像 coroutineScope 所做的那样。
 
+
+### 协程在Java中实现
+
+我们知道协程并不是线程，它是一种异步设计模式，是一种特殊的函数是异步编码趋向于拥有同步编码的体验。既然是一个函数，我们可以看下这个函数在Jva中的具体实现。我们以如下的协程使用为例：
+```
+suspend fun value1(): Int {
+    delay(1000)
+    println("1")
+    return 1
+}
+
+fun main() {
+    runBlocking {
+        value1()
+    }
+}
+
+```
+
+通过在AS中使用Tools->Kotlin->Show Kotlin Bytecode显示字节码，然后通过DECOMPILE按钮转化成Java，其核心代码如下：
+
+```
+public final class MainKt {
+   @Nullable
+   public static final Object value1(@NotNull Continuation $completion) {
+      Object $continuation;
+      label20: {
+         if ($completion instanceof <undefinedtype>) {
+            $continuation = (<undefinedtype>)$completion;
+            if ((((<undefinedtype>)$continuation).label & Integer.MIN_VALUE) != 0) {
+               ((<undefinedtype>)$continuation).label -= Integer.MIN_VALUE;
+               break label20;
+            }
+         }
+
+         $continuation = new ContinuationImpl($completion) {
+            // $FF: synthetic field
+            Object result;
+            int label;
+
+            @Nullable
+            public final Object invokeSuspend(@NotNull Object $result) {
+               this.result = $result;
+               this.label |= Integer.MIN_VALUE;
+               return MainKt.value1(this);
+            }
+         };
+      }
+
+      Object $result = ((<undefinedtype>)$continuation).result;
+      Object var5 = IntrinsicsKt.getCOROUTINE_SUSPENDED();
+      switch(((<undefinedtype>)$continuation).label) {
+      case 0:
+         ResultKt.throwOnFailure($result);
+         ((<undefinedtype>)$continuation).label = 1;
+         if (DelayKt.delay(1000L, (Continuation)$continuation) == var5) {
+            return var5;
+         }
+         break;
+      case 1:
+         ResultKt.throwOnFailure($result);
+         break;
+      default:
+         throw new IllegalStateException("call to 'resume' before 'invoke' with coroutine");
+      }
+
+      String var1 = "1";
+      boolean var2 = false;
+      System.out.println(var1);
+      return Boxing.boxInt(1);
+   }
+
+   public static final void main() {
+      BuildersKt.runBlocking$default((CoroutineContext)null, (Function2)(new Function2((Continuation)null) {
+         private CoroutineScope p$;
+         Object L$0;
+         int label;
+
+         @Nullable
+         public final Object invokeSuspend(@NotNull Object $result) {
+            Object var3 = IntrinsicsKt.getCOROUTINE_SUSPENDED();
+            Object var10000;
+            CoroutineScope $this$runBlocking;
+            switch(this.label) {
+            case 0:
+               ResultKt.throwOnFailure($result);
+               $this$runBlocking = this.p$;
+               this.L$0 = $this$runBlocking;
+               this.label = 1;
+               var10000 = MainKt.value1(this);
+               if (var10000 == var3) {
+                  return var3;
+               }
+               break;
+            case 1:
+               $this$runBlocking = (CoroutineScope)this.L$0;
+               ResultKt.throwOnFailure($result);
+               var10000 = $result;
+               break;
+            default:
+               throw new IllegalStateException("call to 'resume' before 'invoke' with coroutine");
+            }
+
+            return var10000;
+         }
+
+         @NotNull
+         public final Continuation create(@Nullable Object value, @NotNull Continuation completion) {
+            Intrinsics.checkParameterIsNotNull(completion, "completion");
+            Function2 var3 = new <anonymous constructor>(completion);
+            var3.p$ = (CoroutineScope)value;
+            return var3;
+         }
+
+         public final Object invoke(Object var1, Object var2) {
+            return ((<undefinedtype>)this.create(var1, (Continuation)var2)).invokeSuspend(Unit.INSTANCE);
+         }
+      }), 1, (Object)null);
+   }
+
+   // $FF: synthetic method
+   public static void main(String[] var0) {
+      main();
+   }
+}
+
+```
+
+下面我们来详细分析。
+
+在kt文件中知道，会生成一个”${文件名}KT"的类，在类中实现了真正的main函数来调用了我们的main（）。
+
+在我们的main中就调用了BuildersKt.runBlocking$default，这个我们在前有简单学习到。我们这里具体展开分析：
+
+首先调用runBlocking$default，在jadx-gui中查看：
+```
+public static /* synthetic */ Object runBlocking$default(CoroutineContext coroutineContext, Function2 function2, int i, Object obj) throws InterruptedException {
+        return BuildersKt.runBlocking((i & 1) != 0 ? (CoroutineContext) EmptyCoroutineContext.INSTANCE : coroutineContext, function2);
+    }
+```
+对于示例代码，其实就是调用BuildersKt.runBlocking（），入参为EmptyCoroutineContext.INSTANCE和function2。BuildersKt.runBlocking（）函数我们直接看Builders.kt中的runBlocking函数即可，这里没有隐藏逻辑：
+```kotlin
+public fun <T> runBlocking(context: CoroutineContext = EmptyCoroutineContext, block: suspend CoroutineScope.() -> T): T {
+    contract {
+        callsInPlace(block, InvocationKind.EXACTLY_ONCE)
+    }
+    val currentThread = Thread.currentThread()//当前线程，runBlocking不会做线程切换。
+    val contextInterceptor = context[ContinuationInterceptor]//获取ContinuationInterceptor类型的context，这个用于阻断所有的Continuation，Continuation是实现协程中任务恢复的关键实现，后面具体展开。
+    val eventLoop: EventLoop? //eventLoop，协程调度的关键实现
+    val newContext: CoroutineContext
+    if (contextInterceptor == null) {
+        // create or use private event loop if no dispatcher is specified
+        eventLoop = ThreadLocalEventLoop.eventLoop //eventLoop，协程调度的关键实现
+        newContext = GlobalScope.newCoroutineContext(context + eventLoop)
+    } else {
+        // See if context's interceptor is an event loop that we shall use (to support TestContext)
+        // or take an existing thread-local event loop if present to avoid blocking it (but don't create one)
+        eventLoop = (contextInterceptor as? EventLoop)?.takeIf { it.shouldBeProcessedFromContext() }
+            ?: ThreadLocalEventLoop.currentOrNull()
+        newContext = GlobalScope.newCoroutineContext(context)
+    }
+    //下面就是创建协程并start、join。
+    val coroutine = BlockingCoroutine<T>(newContext, currentThread, eventLoop)
+    coroutine.start(CoroutineStart.DEFAULT, coroutine, block)
+    return coroutine.joinBlocking()
+}
+```
+
+对于CoroutineStart，是一个枚举类。主要是来处理block代码块的执行逻辑：
+* DEFAULT:默认方式，立即执行。
+* LAZY:延迟执行，在需要的时候再开始执行，可以调用job的start（立即执行）和join（加入等待执行）函数触发执行。
+* ATOMIC:原子性，立即执行，无法cancel。
+* UNDISPATCHED：
+
+
+这里再重点说一下第二个入参，block: suspend CoroutineScope.() -> T 这是匿名扩展函数的用法。对于suspend，在Java中替换为了Function2。Function2的泛型要求两个入参一个返回值，第一个入参就是CoroutineScope对象，第二个对象就是Continuation，返回的是一个Object，这里的Continuation和Object都有特殊的作用。
+
+因此对于main函数中，其实就是在特定的线程以特定的方式执行协程的代码块，就是Function2中的invoke函数。先调用create函数重新创建一个Function2对象（这里有个没有明确表示出来的关系，我们真正使用的Function2是一个声明Function2和Continuation的匿名类，切有一个入参为Continuation的构造函数，这里暂且认为是Function2对象），然后调用其invokeSuspend函数。特别注意这里是新创建了Function2，是通过invoke函数并不是new出来的，我们在BuildersKt.runBlocking$default函数是new出来的Function2时入参Continuation是null，真正通过invoke函数执行时传入一个非空Continuation对象，在create函数中有非空判断。
+
+然后我们看下invokeSuspend函数，初始label为0，因此我们进入0对应的case，将label设置为1后调用MainKt.value1（）函数，传入this作为入参Continuation。在MainKt.value1中，对传入的Continuation做类型和值判断，我们这里label已经赋值为1了肯定判断失败。因此会重新创建当前挂起函数的匿名Continuation类对象，此时该Continuation类对象的label也为0，因此我们进入0对应的case.
+
+```
+      case 0:
+         ResultKt.throwOnFailure($result);
+         ((<undefinedtype>)$continuation).label = 1;
+         if (DelayKt.delay(1000L, (Continuation)$continuation) == var5) {
+            return var5;
+         }
+         break;
+
+```
+
+先将label设置为1，然后调用delay函数，delay函数也是一个suspend函数，也要求一个Continuation入参，其实内部实现逻辑大致类似。var5的定义：Object var5 = IntrinsicsKt.getCOROUTINE_SUSPENDED();。delay函数调用时会正常会返回这个值，此时value1函数直接返回。回到main函数中也进行了return。
+
+然后我们发现value1函数的println("1")并没有被执行，整个函数调用流程确已经完成了。 这就下就尴尬了，此时有需要数一下之前一直有说到的Continuation了，Contination接口的定义如下：
+
+```
+/**
+ * Interface representing a continuation after a suspension point that returns a value of type `T`.
+ */
+@SinceKotlin("1.3")
+public interface Continuation<in T> {
+    /**
+     * The context of the coroutine that corresponds to this continuation.
+     */
+    public val context: CoroutineContext
+
+    /**
+     * Resumes the execution of the corresponding coroutine passing a successful or failed [result] as the
+     * return value of the last suspension point.
+     */
+    public fun resumeWith(result: Result<T>)
+}
+```
+
+类注释明确了Continuation负责的是在挂起点返回一个结果（T）时继续执行流程。重点函数resumeWith注释明确了该函数恢复执行对于的协程并传入成功和失败结果。
+
+我们在前面说到的初始执行流程上，通过传递和聚合的方式构建了一条链，对于第一个返回IntrinsicsKt.getCOROUTINE_SUSPENDED()的，就是挂起点，恢复已在挂起点开始。
+
+例如回到我们的代码流程中，DelayKt.delay()函数的实现如下：
+```
+public suspend fun delay(timeMillis: Long) {
+    if (timeMillis <= 0) return // don't delay
+    return suspendCancellableCoroutine sc@ { cont: CancellableContinuation<Unit> ->
+        cont.context.delay.scheduleResumeAfterDelay(timeMillis, cont)
+    }
+}
+```
+
+挂起协程，可被取消。重点delay的实现在cont.context.delay.scheduleResumeAfterDelay(timeMillis, cont)。为了了解协程挂起后是如何恢复的，我们看下delay的具体实现。
+
+这里就要了解前面BuildersKt.runBlocking（）是提到的EventLoop了。对于EventLoop的注释如下：
+```
+/**
+ * Extended by [CoroutineDispatcher] implementations that have event loop inside and can
+ * be asked to process next event from their event queue.
+ *
+ * It may optionally implement [Delay] interface and support time-scheduled tasks.
+ * It is created or pigged back onto (see [ThreadLocalEventLoop])
+ * by `runBlocking` and by [Dispatchers.Unconfined].
+ *
+ * @suppress **This an internal API and should not be used from general code.**
+ */
+
+```
+
+EventLoop用来实现event的调度，内部维护两个个队列，一个保存待执行的Runnable，一个保存delay的Runnable，在当前示例中这里Runnable是一个DispatchedContinuation对象。
+
+回到runBlocking函数中，最终调用coroutine.joinBlocking()函数，在该函数中通过while循环一直调用执行EventLoop中processNextEvent()函数,这里的实现类在EventLoopImplBase中：
+
+```
+override fun processNextEvent(): Long {
+    // unconfined events take priority
+    if (processUnconfinedEvent()) return 0
+    // queue all delayed tasks that are due to be executed
+    val delayed = _delayed.value
+    if (delayed != null && !delayed.isEmpty) {
+        val now = nanoTime()
+        while (true) {
+            // make sure that moving from delayed to queue removes from delayed only after it is added to queue
+            // to make sure that 'isEmpty' and `nextTime` that check both of them
+            // do not transiently report that both delayed and queue are empty during move
+            delayed.removeFirstIf {
+                if (it.timeToExecute(now)) {
+                    enqueueImpl(it)
+                } else
+                    false
+            } ?: break // quit loop when nothing more to remove or enqueueImpl returns false on "isComplete"
+        }
+    }
+    // then process one event from queue
+    val task = dequeue()
+    if (task != null) {
+        task.run()
+        return 0
+    }
+    return nextTime
+}
+```
+
+英文注释也就很明确了，这个函数主要有两块。先判断_delayed任务队列中是否已经有到时需要执行的任务，如果有加入到待执行队列_queue中。然后取出待执行队列中的第一个task进行执行run函数，其实现在DispatchedTask中：
+
+```
+public final override fun run() {
+    val taskContext = this.taskContext
+    var fatalException: Throwable? = null
+    try {
+        val delegate = delegate as DispatchedContinuation<T>
+        val continuation = delegate.continuation
+        val context = continuation.context
+        val state = takeState() // NOTE: Must take state in any case, even if cancelled
+        withCoroutineContext(context, delegate.countOrElement) {
+            val exception = getExceptionalResult(state)
+            val job = if (resumeMode.isCancellableMode) context[Job] else null
+            /*
+             * Check whether continuation was originally resumed with an exception.
+             * If so, it dominates cancellation, otherwise the original exception
+             * will be silently lost.
+             */
+            if (exception == null && job != null && !job.isActive) {
+                val cause = job.getCancellationException()
+                cancelResult(state, cause)
+                continuation.resumeWithStackTrace(cause)
+            } else {
+                if (exception != null) continuation.resumeWithException(exception)
+                else continuation.resume(getSuccessfulResult(state))
+            }
+        }
+    } catch (e: Throwable) {
+        // This instead of runCatching to have nicer stacktrace and debug experience
+        fatalException = e
+    } finally {
+        val result = runCatching { taskContext.afterTask() }
+        handleFatalException(fatalException, result.exceptionOrNull())
+    }
+}
+```
+
+这里也可以看英文注释，可以看到在run函数的最后会进行调用continuation.resume。至此恢复到了之前挂起点的执行。
+
+
+同时在这个函数上我们可以了解到是有异常、cancel的逻辑的处理。
