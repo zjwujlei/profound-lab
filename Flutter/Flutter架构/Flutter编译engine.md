@@ -162,9 +162,70 @@ Failed to run ninja:  1
 
 我们使用的flutter.jar和libflutter.so就在android_debug_unopt中。
 
-我们可以直接使用本地engine产物。这个在如果看过flutter sdk源码的话会有印象，我们打包Flutter APK的时候有时会碰到Flutter engine依赖下载失败，因此我们会更改MAVEN_REPO，或者使用私有maven仓库的方式解决。这部分在SDK的flutter.gradle文件中，文件路径：/flutter/packages/flutter_tools/gradle/flutter.gradle。如果我们使用本地的engine的话，其处理了逻辑也在这里。
-
 我们可以通过一下命令来直接使用
 ```
 flutter run --local-engine-src-path=/xxx/engine/src --local-engine=/xxx/engine/src/out/android_debug_unopt
+```
+
+但如果我们想要将本地engine配合Android Studio使用，或者使用Android gradle相关命令的话，可以直接使用本地engine产物。这个在如果看过flutter sdk源码的话会有印象，我们打包Flutter APK的时候有时会碰到Flutter engine依赖下载失败，因此我们会更改MAVEN_REPO，或者使用私有maven仓库的方式解决。这部分在SDK的flutter.gradle文件中，文件路径：/flutter/packages/flutter_tools/gradle/flutter.gradle。这里有使用本地的engine的逻辑，有以下三部分：
+
+```
+#105行，local-engine-repo的配置，engine产物maven依赖目录。
+String hostedRepository = System.env.FLUTTER_STORAGE_BASE_URL ?: DEFAULT_MAVEN_HOST
+String repository = useLocalEngine()
+    ? project.property('local-engine-repo')
+    : "$hostedRepository/download.flutter.io"
+
+project.rootProject.allprojects {
+    repositories {
+        maven {
+            url repository
+        }
+    }
+}
+#205行，local-engine-out配置，编译的engine out目录
+if (useLocalEngine()) {
+    // This is required to pass the local engine to flutter build aot.
+    String engineOutPath = project.property('local-engine-out')
+    println("engineOutPath:"+engineOutPath)
+    File engineOut = project.file(engineOutPath)
+    if (!engineOut.isDirectory()) {
+        throw new GradleException('local-engine-out must point to a local engine build')
+    }
+    localEngine = engineOut.name
+    localEngineSrcPath = engineOut.parentFile.parent
+}
+#539行，local-engine-build-mode配置，配置debug、release、profile。
+private Boolean supportsBuildMode(String flutterBuildMode) {
+
+    if (!useLocalEngine()) {
+        return true;
+    }
+    assert project.hasProperty('local-engine-build-mode')
+    // Don't configure dependencies for a build mode that the local engine
+    // doesn't support.
+    return project.property('local-engine-build-mode') == flutterBuildMode
+}
+```
+
+需要在gradle.properties中配置local-engine-repo、local-engine-out和local-engine-build-mode。对于配置很简单：
+
+```
+local-engine-out=/xxx/engine/src/out/android_debug_unopt
+local-engine-build-mode=debug
+```
+
+local-engine-repo就不是一个engine编译结果中直接的目录了，我们可以在flutter.gradle中对local-engine-repo进行打印，在flutter run命令运行是输出的结果如下：
+```
+/var/folders/00/z4yrqp2150sdfhgk9h3b7l4r0000gn/T/flutter_tools.U3WOrb/flutter_tool_local_engine_repo.hYKR2x
+
+```
+
+这就是一个本地maven仓库，在flutter run命令时会动态生成。这里简单起见我们就将这个maven仓库直接拷贝到/xxx/engine/src/out/目录下进行使用。平台化engine编译打包的话，可以在编译生成这个engine后，使用shell或者gradle等脚本去输出maven依赖。
+
+最后附上gradle.properties下的三项完整配置
+```
+local-engine-repo=/xxx/engine/src/out/android_debug_repo
+local-engine-out=/xxx/engine/src/out/android_debug_unopt
+local-engine-build-mode=debug
 ```

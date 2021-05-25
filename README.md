@@ -55,6 +55,7 @@ Profound Android开发学习笔记
 - [Flutter下Tangram实现动态化](./Flutter/Tangram-Flutter/Tangram-Flutter.md)
 - [Flutter统一插件模式](./Flutter/Flutter统一插件模式/Flutter插件工程优化.md)
 - [Flutter编译Engine](./Flutter/Flutter架构/Flutter编译engine.md)
+- [Flutter调试Engine代码](./Flutter/Flutter架构/Flutter调试Engine代码.md)
 
 ### RN 相关学习笔记
 - [RN 安卓侧源码阅读记要](./react-native/RN Android侧源码阅读/RN 安卓侧源码阅读记要.md)
