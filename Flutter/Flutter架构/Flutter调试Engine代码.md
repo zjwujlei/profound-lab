@@ -3,11 +3,11 @@ Flutter调试Engine代码
 
 Flutter Engine部分代码较多，切网上资料较少，学习切入点不好寻找。这里通过调试作为切入点进行学习。
 
-###lldb
+### lldb
 
 <a href="https://lldb.llvm.org/use/remote.html">lldb</a>是一个代码调试工具，是一个底层调试器(low level debugger)Android中NDK下开发调试就是基于lldb。lldb是基于Client-Server架构，Client和Server通过gdb-remote协议进行通信，基于TCP/IP进行传输。
 
-######lldb-server
+#### lldb-server
 
 对于server，在Android平台下，手机端并未自带lldb-server，我们需要push server端到手机中。lldb-server是一个二进制可执行文件，既然Android中NDK下开发调试使用lldb，且Android平台本身不带，那大概率是在Android开发环境下的，在我们进行Native调试的时候push到手机中的。确实，lldb-server在SDK下（/sdk/ndk/21.2.6472646/toolchains/llvm/prebuilt/darwin-x86_64/lib64/clang/9.0.8/lib/linux/aarch64），push到手机目录/data/local/tmp下，如果不想手动寻找push，其实可以创建一个NDK项目对Native代码调试下就有了。
 
@@ -39,7 +39,7 @@ TMP_DIR=$LLDB_DIR/tmp
 PLATFORM_LOG_FILE=$LOG_DIR/platform.log
 ```
 
-###### lldb
+#### lldb
 
 对于Client端，使用lldb命令。基本机器上就有lldb命令，在/usr/bin下。我们直接使用lldb命令开启lldb client进程。
 ```
@@ -61,7 +61,10 @@ add-dsym /Users/wujinglei/github-space/engine/src/out/android_debug_unopt/libflu
 settings set target.source-map /Users/wujinglei/github-space/engine/src/out/android_debug_unopt /Users/wujinglei/github-space/engine/src/
 ```
 
-至此，lldb client端完成，可以通过命令行进行调试。lldb的调试语法可以参见<a href="https://lldb.llvm.org/use/map.html#id2">vBreakpoint Commands</a>
+至此，lldb client端完成，可以通过命令行进行调试。lldb的调试语法可以参见<a href="https://lldb.llvm.org/use/map.html#id2">Breakpoint Commands</a>
 
 
-### 使用clion进行调试 
+
+
+
+
