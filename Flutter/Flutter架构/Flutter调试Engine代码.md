@@ -94,19 +94,17 @@ previous run for a given device, then you can skip this step by passing
 * kill掉正在运行的gdbserver进程。我们在做反调试相关的时候知道，一个进程同时只能被一个进程ptrace。
 * 执行gdbserver --attach:端口 pid 命令起一个gdbserver服务。端口不设置的话默认是8888
 
-其中后三步都需要在package_name对应空间下执行，既需要执行 run-as ${package_name}命令。执行完成的话终端会有如下输出：
+其中后三步都需要在package_name对应空间下执行，既需要执行 run-as ${package_name}命令。其实我们也完全可以手动执行相关命令。执行完成的话终端会有如下输出：
 
 >Attached; pid = 10548
 >
->Listening on port 8888
+>Listening on port 1234
 
 这样server端就起成功了，整体看下来和lldb差不多，确实lldb也是基于gdb的。
 
-我们在clion中使用过GDB Remote Debug进行配置。然后调试链接时，在之前起server的终端中已经打印:
+我们在clion中使用<a href="https://www.jetbrains.com/help/clion/remote-debug.html#remote-config">GDB Remote Debug</a>进行配置。然后调试链接时，在之前起server的终端中已经打印:
 ```
 Remote debugging from host 192.168.31.187, port 58287
-Remote side has terminated connection.  GDBserver will reopen the connection.
-Listening on port 1234
 ```
 
 但在clion中报错：
@@ -114,14 +112,55 @@ Listening on port 1234
 com.jetbrains.cidr.execution.debugger.backend.gdb.GDBDriver$GDBCommandException: Remote replied unexpectedly to 'vMustReplyEmpty': PacketSize=47ff;QPassSignals+;QProgramSignals+;QStartupWithShell+;QEnvironmentHexEncoded+;QEnvironmentReset+;QEnvironmentUnset+;QSetWorkingDir+;QCatchSyscalls+;qXfer:libraries-svr4:read+;augmented-libraries-svr4-read+;qXfer:auxv:read+;qXfer:spu:read+;qXfer:spu:write+;qXfer:siginfo:read+;qXfer:siginfo:write+;qXfer:features:read+;QStartNoAckMode+;qXfer:osdata:read+;multiprocess+;fork-events+;vfork-events+;exec-events+;QNonStop+;QDisableRandomization+;qXfer:threads:read+;ConditionalTracepoints+;TraceStateVariables+;TracepointSource+;DisconnectedTracing+;FastTracepoints+;StaticTracepoints+;InstallInTrace+;qXfer:statictrace:read+;qXfer:traceframe-info:read+;EnableDisableTracepoints+;QTBuffer:size+;tracenz+;ConditionalBreakpoints+;BreakpointCommands+;QAgent+;Qbtrace:bts+;Qbtrace-conf:bts:size+;Qbtrace:pt+;Qbtrace-conf:pt:size+;Qbtrace:off+;qXfer:btrace:read+;qXfer:btrace-conf:read+;swbreak+;hwbreak+;qXfer:exec-file:read+;vContSupported+;QThreadEvents+;no-resumed+
 ```
 
-看日志是server端返回的报文，clion的client端无法识别。查了下push到手机上的gdbserver版本是8.4，而clion用的是10.1。这下得做版本对应。
+看日志是server端返回的报文，clion的client端无法识别。查了下push到手机上的gdbserver版本是8.3，而clion用的是10.1。这下得做版本对应。
 
-然而，gdbserver是一个针对特定平台的可执行文件，这点在前面说流程的时候有说道，push的是android-arm64下的gdbserver，同时在查看版本的时候如果我们直接在电脑上执行gdbserver --version的话会报：zsh: exec format error: ./gdbserver。
+#### 修改Clion使用的gdb版本
+这里最简单的做法是修改Clion的GDB版本。Preferences | Build, Execution, Deployment | Toolchains下修改Debugger的gdb执行文件目录。在engine的编译是会下载整个NDK，前面介绍flutter_gdb server命令做的事情中说道是push /engine/src/third_party/android_tools/ndk/prebuilt/android-arm64/下的gdbserver，而gdb是我们在本机（mac）下运行的，所以应该选择/engine/src/third_party/android_tools/ndk/prebuilt/drawin-x86_64/下的gdb命令。再次开启调试成功连接。
+
+
+#### 交叉编译android-aarch64下10.1版本的gdbserver并使用过
+当然我们也可以自己编译10.1版本的gdbserver，gdbserver是一个针对特定平台的可执行文件，这点在前面说流程的时候有说道，push的是android-arm64下的gdbserver，同时在查看版本的时候如果我们直接在电脑上执行gdbserver --version的话会报：zsh: exec format error: ./gdbserver。
+
+
 
 因此只好去下载<a href="https://ftp.gnu.org/gnu/gdb/">gdb10.1版本</a>的源码通过ndk进行编译。
 
+下载好对应版本的源码后，我们进入源码目录，有configure可执行文件，有编译三方库经验的就很清楚，基本流程是通过执行configure命令生成编译配置，然后通过make命令生成编译产物。查看源码中的README,似乎在这个场景下如下执行命令即可：
 
-//TODO:未完待续
+```
+./configure 
+make
+```
+
+但是在README中有如下内容：
+>(If the configure script can't determine your type of computer, give it
+>the name as an argument, for instance ``./configure sun4''.  You can
+>use the script ``config.sub'' to test whether a name is recognized; if
+>it is, config.sub translates it to a triplet specifying CPU, vendor,
+>and OS.)
+
+configure脚本是针对单前平台下进行生成编译配置的，然而我们想要的是交叉编译，在mac下编译生成android-arm下可用执行文件。针对交叉编译并没有介绍，如果我们直接执行./configure --target android-arm会出错：
+```
+checking build system type... x86_64-apple-darwin20.2.0
+checking host system type... x86_64-apple-darwin20.2.0
+checking target system type... Invalid configuration `android-arm': machine `android-unknown' not recognized
+configure: error: /bin/sh ./config.sub android-arm failed
+```
+
+因此这里似乎无法直接用过configure命令来进行编译。庆幸的是，gdb相关的在我们NDK中都有支持，我们在/android-ndk-r17c/build/tools目录下能找到build-gdbserver.sh等build脚本用来进行交叉编译。
+
+```
+Usage: build-gdbserver.sh [options] <arch> <target-triple> <src-dir> <ndk-dir>
+
+Rebuild the gdbserver prebuilt binary for the Android NDK toolchain.
+
+Where <src-dir> is the location of the gdbserver sources,
+<ndk-dir> is the top-level NDK installation path and <toolchain>
+is the name of the toolchain to use (e.g. arm-linux-androideabi-4.8).
+```
+
+//未完待续
+
 
 ### 使用过Android Studio进行调试
 说到底，Clion无法使用过lldb进行调试的原因是没有lldb插件支持，当个Android对NDK的调试就是基于lldb的，在Android studio下完全可以使用过lldb进行调试Native代码。
