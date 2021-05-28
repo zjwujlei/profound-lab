@@ -114,53 +114,6 @@ com.jetbrains.cidr.execution.debugger.backend.gdb.GDBDriver$GDBCommandException:
 
 看日志是server端返回的报文，clion的client端无法识别。查了下push到手机上的gdbserver版本是8.3，而clion用的是10.1。这下得做版本对应。
 
-#### 修改Clion使用的gdb版本
 这里最简单的做法是修改Clion的GDB版本。Preferences | Build, Execution, Deployment | Toolchains下修改Debugger的gdb执行文件目录。在engine的编译是会下载整个NDK，前面介绍flutter_gdb server命令做的事情中说道是push /engine/src/third_party/android_tools/ndk/prebuilt/android-arm64/下的gdbserver，而gdb是我们在本机（mac）下运行的，所以应该选择/engine/src/third_party/android_tools/ndk/prebuilt/drawin-x86_64/下的gdb命令。再次开启调试成功连接。
 
 
-#### 交叉编译android-aarch64下10.1版本的gdbserver并使用过
-当然我们也可以自己编译10.1版本的gdbserver，gdbserver是一个针对特定平台的可执行文件，这点在前面说流程的时候有说道，push的是android-arm64下的gdbserver，同时在查看版本的时候如果我们直接在电脑上执行gdbserver --version的话会报：zsh: exec format error: ./gdbserver。
-
-
-
-因此只好去下载<a href="https://ftp.gnu.org/gnu/gdb/">gdb10.1版本</a>的源码通过ndk进行编译。
-
-下载好对应版本的源码后，我们进入源码目录，有configure可执行文件，有编译三方库经验的就很清楚，基本流程是通过执行configure命令生成编译配置，然后通过make命令生成编译产物。查看源码中的README,似乎在这个场景下如下执行命令即可：
-
-```
-./configure 
-make
-```
-
-但是在README中有如下内容：
->(If the configure script can't determine your type of computer, give it
->the name as an argument, for instance ``./configure sun4''.  You can
->use the script ``config.sub'' to test whether a name is recognized; if
->it is, config.sub translates it to a triplet specifying CPU, vendor,
->and OS.)
-
-configure脚本是针对单前平台下进行生成编译配置的，然而我们想要的是交叉编译，在mac下编译生成android-arm下可用执行文件。针对交叉编译并没有介绍，如果我们直接执行./configure --target android-arm会出错：
-```
-checking build system type... x86_64-apple-darwin20.2.0
-checking host system type... x86_64-apple-darwin20.2.0
-checking target system type... Invalid configuration `android-arm': machine `android-unknown' not recognized
-configure: error: /bin/sh ./config.sub android-arm failed
-```
-
-因此这里似乎无法直接用过configure命令来进行编译。庆幸的是，gdb相关的在我们NDK中都有支持，我们在/android-ndk-r17c/build/tools目录下能找到build-gdbserver.sh等build脚本用来进行交叉编译。
-
-```
-Usage: build-gdbserver.sh [options] <arch> <target-triple> <src-dir> <ndk-dir>
-
-Rebuild the gdbserver prebuilt binary for the Android NDK toolchain.
-
-Where <src-dir> is the location of the gdbserver sources,
-<ndk-dir> is the top-level NDK installation path and <toolchain>
-is the name of the toolchain to use (e.g. arm-linux-androideabi-4.8).
-```
-
-//未完待续
-
-
-### 使用过Android Studio进行调试
-说到底，Clion无法使用过lldb进行调试的原因是没有lldb插件支持，当个Android对NDK的调试就是基于lldb的，在Android studio下完全可以使用过lldb进行调试Native代码。
