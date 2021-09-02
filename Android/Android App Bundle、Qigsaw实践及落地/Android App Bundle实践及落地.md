@@ -1,8 +1,69 @@
 Android App Bundle实践及落地
 ==========================
 
-Android App Bundle是Google推出的动态安装apk的方案。在splites apk的基础上，提供了按需加载，动态下发的实现。
-### multiple APKs和splites apk
+Android App Bundle是Google推出的动态安装apk的方案。在SplitApk的基础上，提供了按需加载，动态下发的实现。
+
+### SplitApk
+
+了解splitapk的话我们从LoadedApk入手，LoadedApk有如下参数
+
+```java
+//split模块名称
+private String[] mSplitNames;
+//split模块apk文件路径
+private String[] mSplitAppDirs;
+//split模块中资源路径
+private String[] mSplitResDirs;
+//对应的classloader
+private String[] mSplitClassLoaderNames;
+```
+
+我们从这些值是如何产生的和如何使用两方面来了解。
+
+###### 如何产生
+
+这里如果了解应用启动流程的话会有看到一些。我们以倒推的形式看一下：
+
+```java
+public LoadedApk(ActivityThread activityThread, ApplicationInfo aInfo,
+                 CompatibilityInfo compatInfo, ClassLoader baseLoader,
+                 boolean securityViolation, boolean includeCode, boolean registerPackage) {
+
+    mActivityThread = activityThread;
+    //LoadedApk构造函数里在setApplicationInfo函数中通过ApplicationInfo传递进行赋值。
+    setApplicationInfo(aInfo);
+    //省略
+}
+```
+
+在启动流程中，LoadedApk是在ActivityThread.handleBindApplication流程中调用getPackageInfoNoCheck(data.appInfo, data.compatInfo)创建，data就是AppBindData，data.appInfo就是ApplicationInfo。是ActivityManagerService通过Binder机制调用ApplicationThread.bindApplication传入。
+
+启动流程中当app进程创建并执行ActivityThread的main函数时，创建了ActivityThread并调用其attach函数时，是通过Binder机制调用ActivityManagerService的attachApplication，在其对应的ProcessRecord仍旧有效是，会调用ApplicationThread.bindApplication并传入ProcessRecord中持有的ApplicationInfo。
+
+至此我们追溯到这些SplitApk相关信息是系统在做APP进程初始化的时候收集的。
+
+###### 如何使用
+
+我们回到LoadedApk的创建的setApplicationInfo函数中：
+
+```java
+ private void setApplicationInfo(ApplicationInfo aInfo) {
+        //省略
+     	//这里留一个adjustNativeLibraryPaths函数，这个函数与Split无关但可以了解下,是用来决定abi的。
+        aInfo = adjustNativeLibraryPaths函数(aInfo);
+        //设置Split相关信息
+        mSplitNames = aInfo.splitNames;
+        mSplitAppDirs = aInfo.splitSourceDirs;
+        mSplitResDirs = aInfo.uid == myUid ? aInfo.splitSourceDirs : aInfo.splitPublicSourceDirs;
+        mSplitClassLoaderNames = aInfo.splitClassLoaderNames;
+		//如果使用隔离模式，及每个split独立的ClassLoader
+        if (aInfo.requestsIsolatedSplitLoading() && !ArrayUtils.isEmpty(mSplitNames)) {
+            mSplitLoader = new SplitDependencyLoaderImpl(aInfo.splitDependencies);
+        }
+    }
+```
+
+
 
 
 ### Android App Bundle实现
@@ -19,62 +80,7 @@ Android App Bundle的feature apk加载实际上就是使用的splites apk的机�
 
 我们这里重点来看一下8.0上的实现。
 
-##### 安装过程
-Android App Bundle的安装过程在playcore库中但是并没有开源，相关代码都经过混淆。也可以查看爱奇艺重写的Qigsaw，Qigsaw的playcorelibrary是对google的playcore的爱奇艺版实现，去掉了语言信息等逻辑。我们这边先直接看playcore库：
 
-安装入口函数：SplitInstallManager.startInstall，具体的实现在M.startInstall，返回值是一个Task<Integer>对象。我们可以在Task里添加成功、失败、完成的的监听器，而在添加监听器的时候会判断这个Task是否是complete状态，如果是会根据直接回调，特别是在已经加载过的情况下就会直接回调。
-
-```java
-public final Task<Integer> startInstall(SplitInstallRequest var1) {
-        //5.0前的手机，如果有语言信息，知己诶抛出异常
-        if (!var1.getLanguages().isEmpty() && VERSION.SDK_INT < 21) {
-            return Tasks.a(new SplitInstallException(-5));
-        } else {
-            List var3 = var1.getModuleNames();
-            //已经安装的处理，Qigsaw中直接不做支持
-            if (this.getInstalledModules().containsAll(var3)) {
-                //支持语言是否有新增
-                var3 = var1.getLanguages();
-                boolean var10000;
-                Set var4;
-                if ((var4 = this.c.b()) == null) {
-                    var10000 = true;
-                } else {
-                    HashSet var5 = new HashSet();
-                    Iterator var6 = var3.iterator();
-
-                    while(var6.hasNext()) {
-                        Locale var7 = (Locale)var6.next();
-                        var5.add(var7.getLanguage());
-                    }
-
-                    var10000 = var4.containsAll(var5);
-                }
-
-                if (var10000) {
-                    this.d.post(new n(this, var1));
-                    //已经feature apk已经加载过，直接放回一个成功的完成的Task
-                    return Tasks.a(0);
-                }
-            }
-            //未安装调用a.a函数，传入需要安装的模块数组和对应的语言信息数组
-            return this.a.a(var1.getModuleNames(), b(var1.getLanguages()));
-        }
-    }
-```
-未安装的情况下，调用a.a（）函数进行安装。
-```java
-    public final Task<Integer> a(Collection<String> var1, Collection<String> var2) {
-        b.a("startInstall(%s,%s)", new Object[]{var1, var2});
-        //i 是一个Task的包装类。
-        i var3 = new i();
-        //重点在这里，com.google.android.play.core.splitinstall.q是一个Runable，这里就是执行其run函数，调用Binder机制在Google Play提供的安装服务内安装成功，然后回调执行var3这个Task
-        this.a.a(new com.google.android.play.core.splitinstall.q(this, var3, var1, var2, var3));
-        return var3.a();
-    }
-```
-
-这里安装流程需要使用到Google Play提供的服务，Android App Bundle对google的依赖也就在这一点。Qigsaw提供了splitinstaller库来完成Google Play需要做的事，将整个安装过程形成闭环。安装成功后即可正常使用feature apk中功能。
 
 
 ### apk devily
@@ -83,6 +89,5 @@ public final Task<Integer> startInstall(SplitInstallRequest var1) {
 
 bundletool是google提供了的用来生成Android App Bundle和生成特定设备APK的工具。<a href="https://github.com/google/bundletool">bundletool</a>已经开源，google官方对bundletool的介绍可以查看<a href="https://developer.android.google.cn/studio/command-line/bundletool">这里</a>。
 
-### 自研实现ExclusiveApp
-
+### 
 

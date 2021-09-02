@@ -22,15 +22,20 @@ Profound Android开发学习笔记
 - [共享内存Ashmen](./Android-JNI-Linux/共享内存Ashmem/Android共享内存实践.md)
 - [JNI开发内存释放学习笔记](./Android-JNI-Linux/共享内存Ashmem/JNI开发内存释放学习记录.md)
 - [进程线程协程](./Android-JNI-Linux/进程线程协程/CPU、进程、线程、协程.md)
+- [JNI下Native代码编译过程](./Android-JNI-Linux/JNI下Native代码编译过程/JNI下Native代码编译过程.md)
+- [Android下Native-Hook](./Android-JNI-Linux/Android下Native-Hook/native-hook.md)
 
 ### Android 相关学习笔记
 - [主流插件化框架横向对比](./Android/Android App Bundle、Qigsaw实践及落地/主流插件化框架横向对比.md)
 - [Qigsaw打包流程分析及定制](./Android/Android App Bundle、Qigsaw实践及落地/Qigsaw打包流程分析及落地.md)
+- [Qigsaw实现流程](./Android/Android App Bundle、Qigsaw实践及落地/Qigsaw.md)
+- [app-bundles-samples](./Android/Android App Bundle、Qigsaw实践及落地/app-bundles-samples.md)
 - [Android App Bundle](./Android/Android App Bundle、Qigsaw实践及落地/Android App Bundle实践及落地.md)
 - [Android Native Hook技术研究](./Android/Android Native Hook技术研究/Native Hook技术.md)
 - [Android Pipline环境搭建](./Android/Android Pipline环境搭建/Android Pipline代码扫描搭建.md)
 - [AndroidAPK分析及逆向加固 - 资源篇](./Android/AndroidAPK分析及逆向、加固/arsc文件分析及逆向、加固.md)
 - [AndroidAPK分析及逆向加固 - so篇](./Android/AndroidAPK分析及逆向、加固/SO文件分析及逆向、加固.md)
+- [DiDiPrism源码阅读](./Android/DiDiPrism阅读/DiDiPrism框架阅读.md)
 - [Android代码编译过程理解](./Android/Android代码编译过程理解/Android代码编译过程理解.md)
 - [Android应用启动流程分析](./Android/Android应用启动流程分析/Android应用启动流程分析.md)
 - [ScriptEngine-Android动态逻辑JS下发实现](./Android/JSEngine/ScriptEngine-Android动态逻辑JS下发实现.md)
@@ -73,7 +78,6 @@ Profound Android开发学习笔记
 - [vue入门学习笔记](./前端/vue学习笔记/vue入门学习笔记.md)
 - [weex学习入门](./前端/Weex入门产出/Weex学习入门.md)
 - [weex Android侧实现分析](./前端/Weex入门产出/Weex Android侧实现分析.md)
-
 
 
 
