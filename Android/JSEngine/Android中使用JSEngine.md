@@ -27,5 +27,16 @@ ScriptEngine-Android动态逻辑JS下发实现
 特别的，在Android中没法直接使用javax.script中的代码。我们需要通过额外导入库实现。
 
 
-### 
+
+### V8引擎编译
+
+具体过程参见<a href="https://v8.dev/docs/source-code">官网</a>
+
+google开源的代码，都通过depot-tool管理，这个就相当于git工具。
+
+settings set target.source-map /Users/wujinglei/github-space/engine/src /Users/wujinglei/flutter-space/tangram/flutter_app/android
+/flutter_source
+
+
+
 

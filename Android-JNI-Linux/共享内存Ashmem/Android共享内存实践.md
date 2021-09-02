@@ -13,7 +13,7 @@ Android共享内存实践
 * 2.对于数据量较大的只读配置文件，可以在主进程中加载，并将内存共享，其他进程直接访问共享内存。这样可以减少整体内存占用。
 
 ###关键函数
-###### Linux下使用
+#### Linux下使用
 ```
 int shmget(key_t key, size_t size, int shmflg); 
 ```
@@ -26,7 +26,7 @@ void *shmat(int shm_id, const void *shm_addr, int shmflg);
 
 其他还有进程分离shmdt、删除函数shmctl。
 
-###### Ashmen-C++使用
+#### Ashmen-C++使用
 ashmen相关的C++操作函数如下：
 ```
 #include <cutils/ashmem.h>
@@ -47,7 +47,40 @@ ashmen相关功能不在标准NDK内，JNI开发无法直接使用ashmen相关�
 
 我们知道MMKV是使用是MMAP来做高效的kv存储的，mmap的学习会单独的笔记记录。同时MMKV是支持跨进程调用的。查看MMKV的源码后发现其就是通过Ashmem实现的。
 
-MMKV对Ashmem的使用也是做多版本的兼容的，Android本身是有Ashmem实现的，相关功能打包后在libandroid.so中。MMKV中就是动态调用libandroid.so中相关函数来实现Ashmem的操作。
+###### libandroid.so
+MMKV对Ashmem的使用也是做多版本的兼容的，Android本身是有Ashmem实现的，相关功能打包后在libandroid.so中。从9.0系统中pull出libandroid.so库，通过nm -D libandroid.so命令查看库中导出函数与Ashmem相关函数如下：
+```
+U ashmem_create_region
+U ashmem_get_size_region
+U ashmem_set_prot_region
+U ashmem_valid
+
+0000d3f0 T ASharedMemory_create
+0000d418 T ASharedMemory_dupFromJava
+0000d3fc T ASharedMemory_getSize
+0000d414 T ASharedMemory_setProt
+```
+
+可以看到前面说道的ashmen相关的C++操作函数和ASharedMemory相关，MMKV中就是动态调用libandroid.so中ASharedMemory相关函数来实现Ashmem的操作。
+
+###### /dev/ashmem
+>ioctl是设备驱动程序中对设备的I/O通道进行管理的函数。所谓对I/O通道进行管理，就是对设备的一些特性进行控制，例如串口的传输波特率、马达的转速等等。它的调用函数如下：
+```
+int ioctl(int fd, ind cmd, …)；
+```
+其中fd是用户程序打开设备时使用open函数返回的文件标示符，cmd是用户程序对设备的控制命令，至于后面的省略号，那是一些补充参数，一般最多一个，这个参数的有无和cmd的意义相关。
+　　ioctl函数是文件结构中的一个属性分量，就是说如果你的驱动程序提供了对ioctl的支持，用户就可以在用户程序中使用ioctl函数来控制设备的I/O通道。
+
+我们在前面说道，Ashmem是一个虚拟文件设备，其使用本身也是通过ioctl来实现的。同时Ashmem也定义了相关ioctl实现，在MMKV中可以查到：
+```
+constexpr auto ASHMEM_NAME_LEN = 256;
+constexpr auto __ASHMEMIOC = 0x77;
+#define ASHMEM_SET_NAME _IOW(__ASHMEMIOC, 1, char[ASHMEM_NAME_LEN])
+#define ASHMEM_GET_NAME _IOR(__ASHMEMIOC, 2, char[ASHMEM_NAME_LEN])
+#define ASHMEM_SET_SIZE _IOW(__ASHMEMIOC, 3, size_t)
+#define ASHMEM_GET_SIZE _IO(__ASHMEMIOC, 4)
+```
+
 
 核心代码源码目录：/MMKV/Core/MemoryFile_Android.cpp中。
 
@@ -98,7 +131,7 @@ int ASharedMemory_create(const char *name, size_t size) {
 
 包括获取文件大小，获取文件名都有对于的函数。但都存在一定适配逻辑。
 
-###### Ashmem-Java使用 MemoryFile/SharedMemory(API27)
+#### Ashmem-Java使用 MemoryFile/SharedMemory(API27)
 Java层通过MemoryFile/SharedMemory类进行进程间内存共享。由于SharedMemory要求API27以上，这里使用MemoryFile。
 
 MemoryFile对不同版本也有不同，在API27以上，就是对SharedMemory的封装。在API27以下则通过直接调用Native函数实现：

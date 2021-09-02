@@ -11,7 +11,7 @@ Profound Android开发学习笔记
 
 11年底开始做Android，掐指一算也十年了。期间技术一直迭代，从热修复、热更、插件化，从H5 hybrid、phoneGap到weex、RN和Flutter，从dex动态加载、不落地加载到指令抽离、VPM加固方案。甚至开发工具从eclipse到AS，开发语言从Java到Kotlin，编译工具从Ant到Gradle。还有每年雷打不动的Android新版本发布的适配，一年比一年严酷的行业竞争的倒逼，学习之心一刻不敢停。
 
-从16年开始，养成了使用markdown进行记录的习惯，有学习笔记、有技术方案选型，也有公司项目方案推进。近期参与周边朋友的组团学习计划，将自己的学习内容进行整理回顾，挑选合适部分在github上进行公开记录，部分笔记有对应的代码库会同步上传。万一哪天去开包子铺了呢。
+从16年开始，养成了使用markdown进行记录的习惯，近期参与周边朋友的组团学习计划，将自己的学习内容进行整理回顾，挑选合适部分在github上进行公开记录，部分笔记有对应的代码库会同步上传。万一哪天去开包子铺了呢。
 
 部分笔记刚起了个头，后续看看有时间可以可以回顾补全。
 
@@ -46,7 +46,9 @@ Profound Android开发学习笔记
 - [基于V2签名的渠道包生成方案](./Android/基于V2签名方案的渠道包生成方案/基于V2签名方案的渠道包生成方案.md)
 - [权限申请分析](./Android/权限申请分析/权限适配说明.md)
 - [webview资源缓存方案分析](./Android/opt-webview/optwebview.md)
+- [Android中使用过JS引擎执行JS代码](./Android/JSEngine/Android中使用JSEngine.md)
 - [Android架构组件Jetpack](./Android/Android架构组件Jetpack使用记录/Android架构组件Jetpack.md)
+- [使用frida工具dump dex文件](./Android/Android破解/使用frida工具dumpdex文件.md)
 
 ### Flutter 相关学习笔记
 - [dart:mirrors库及注解Metadata](./Flutter/Dart进阶之路/dart反射mirrors库及注解Metadata.md)

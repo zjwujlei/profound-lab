@@ -35,6 +35,7 @@ ART虚拟机：编译执行的虚拟机。在APK安装的时候就会会进行de
 这里明确可以看到，multidex是对5.0以下设备生效。
 
 所以整个过程如下：
+
 * APK安装是对主dex进行dexopt过程，生成odex文件。
 * 在APP启动时，如果存在多dex，需要使用multidex功能加载。
 * 对于首次启动，对于secondary dex，需要进行dexopt过程。所以首次启动时较慢。
@@ -59,6 +60,23 @@ MultiDex: VM has multidex support, MultiDex support library is disabled.
 
 基于这种模式，能提升安装及系统升级速度，节省存储空间。用户在首次使用的时候速度会满一些，在后续使用时会越来越快。
 
+
+### AOT+JIT模式下代码存续情况
+前面都是些理论上的的记录，下面我们看看在AOT+JIT模式下，小米8+Android 10下的代码存续情况。
+
+对于新安装未启动的应用，在/data/app/${package path}/oat/arm(arm64)/目录下会有base.vdex和base.odex文件，以某音app为例：
+![install_oat](./install_oat.png)
+
+当我们使用来了一段时间后，对于目录下的情况如下：
+![use_1](./use_1.png)
+
+Android 平台下所有代码都保存在dex下，vdex文件是对dex文件进行验证流程后的结果保存文件，包括所有的原dex文件数据和quicken info（快速校验）两部分。这样在dex2oat过程中就可以跳过dex的veriify流程，减少时间。
+
+但这个文件并不是安装时生成就不变的，从上图可以看到使用APP后，文件修改时间和大小都有变化。
+
+
+
+oatdump --app-oat=tdata_XYq933.odex --image=/system/framework/boot.art
 
 
 

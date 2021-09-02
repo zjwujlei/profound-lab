@@ -12,7 +12,7 @@ Tinker源码研究分析
     - [资源篇](#resource)
     - [SO篇](#so)
 * [Diff实现](#diff)
-    - [DexPatchApplier](#DexPatchApplier)
+    - [DexDiffDecoder](#DexDiffDecoder)
     - [BSPatch](#BSPatch)
 * [补丁加载](#patch_use)
     - [Dex加载](#dex_load)
@@ -329,6 +329,107 @@ private static boolean extractBsDiffInternals(Context context, String dir, Strin
 至此，所有得lib库的修改，都体现在了lib目录下。
 
 ### <span id="diff">diff实现</span>
+
+#### <span id="DexDiffDecoder">DexDiffDecoder</span>
+对于Tinker中加固应用的dex差分，主要在DexDiffDecoder中，根据是否是加固应用分别调用generateChangedClassesDexFile()和generatePatchInfoFile()。对于generateChangedClassesDexFile函数中，首先将新、老包的DEX文件构建出DexGroup对象，其实就是对DEX格式进行解析，具体DEX文件格式不在展开。真正差分在DexClassesComparator的startCheck。我们直接看比较的重点代码：
+
+```java
+    public void startCheck(DexGroup oldDexGroup, DexGroup newDexGroup) {
+        
+        //oldGroup中有，newGroup中没有的视为删除的类。
+        Set<String> deletedClassDescs = new HashSet<>(oldDescriptorOfClassesToCheck);
+        deletedClassDescs.removeAll(newDescriptorOfClassesToCheck);
+
+        for (String desc : deletedClassDescs) {
+            // These classes are deleted as we expect to, so we remove them
+            // from result.
+            if (Utils.isStringMatchesPatterns(desc, patternsOfIgnoredRemovedClassDesc)) {
+                logger.i(TAG, "Ignored deleted class: %s", desc);
+            } else {
+                logger.i(TAG, "Deleted class: %s", desc);
+                deletedClassInfoList.add(oldClassDescriptorToClassInfoMap.get(desc));
+            }
+        }
+        //newGroup中有，oldGroup中没有的视为新增的类
+        Set<String> addedClassDescs = new HashSet<>(newDescriptorOfClassesToCheck);
+        addedClassDescs.removeAll(oldDescriptorOfClassesToCheck);
+
+        for (String desc : addedClassDescs) {
+            if (Utils.isStringMatchesPatterns(desc, patternsOfIgnoredRemovedClassDesc)) {
+                logger.i(TAG, "Ignored added class: %s", desc);
+            } else {
+                logger.i(TAG, "Added class: %s", desc);
+                addedClassInfoList.add(newClassDescriptorToClassInfoMap.get(desc));
+            }
+        }
+
+        //newGroup中有，oldGroup中也有的可能是有变更的类。
+        Set<String> mayBeChangedClassDescs = new HashSet<>(oldDescriptorOfClassesToCheck);
+        mayBeChangedClassDescs.retainAll(newDescriptorOfClassesToCheck);
+
+        for (String desc : mayBeChangedClassDescs) {
+
+            DexClassInfo oldClassInfo = oldClassDescriptorToClassInfoMap.get(desc);
+            DexClassInfo newClassInfo = newClassDescriptorToClassInfoMap.get(desc);
+            switch (compareMode) {
+                //COMPARE_MODE_NORMAL模式，直接比较两个类是否有变更，
+                //isSameClass内部会查看类的定义：
+                //1.accessFlags（public、private等）、2.类描述、3.接口情况、4.类名称、
+                //5.注解情况、6.类数据（变量、函数等）、7.静态变量值。
+                case COMPARE_MODE_NORMAL: {
+                    if (!isSameClass(
+                            oldClassInfo.owner,
+                            newClassInfo.owner,
+                            oldClassInfo.classDef,
+                            newClassInfo.classDef
+                    )) {
+                        if (Utils.isStringMatchesPatterns(desc, patternsOfIgnoredRemovedClassDesc)) {
+                            logger.i(TAG, "Ignored changed class: %s", desc);
+                        } else {
+                            logger.i(TAG, "Changed class: %s", desc);
+                            changedClassDescToClassInfosMap.put(
+                                    desc, new DexClassInfo[]{oldClassInfo, newClassInfo}
+                            );
+                        }
+                    }
+                    break;
+                }
+                //COMPARE_MODE_REFERRER_AFFECTED_CHANGE_ONLY模式，会检查该类引用到的类是否有变化。
+                //isClassChangeAffectedToReferrer函数内部比较逻辑：
+                //1.如果父类有变更，认为该类变更。
+                //2.如果接口有变更，认为该类变更。
+                //3.如果该类的Field和Methods有变更，认为该类便跟
+                case COMPARE_MODE_REFERRER_AFFECTED_CHANGE_ONLY: {
+                    if (isClassChangeAffectedToReferrer(
+                            oldClassInfo.owner,
+                            newClassInfo.owner,
+                            oldClassInfo.classDef,
+                            newClassInfo.classDef
+                    )) {
+                        if (Utils.isStringMatchesPatterns(desc, patternsOfIgnoredRemovedClassDesc)) {
+                            logger.i(TAG, "Ignored referrer-affected changed class: %s", desc);
+                        } else {
+                            logger.i(TAG, "Referrer-affected change class: %s", desc);
+                            changedClassDescToClassInfosMap.put(
+                                    desc, new DexClassInfo[]{oldClassInfo, newClassInfo}
+                            );
+                        }
+                    }
+                    break;
+                }
+                default: {
+                    break;
+                }
+            }
+        }
+    }
+```
+
+逻辑的话就是就change的类会复杂些，会进行详细检测，这些检测都是基于Dex格式中读取信息进行。
+
+所有diff信息差分出来之后，写入一个dex文件，会根据所属原dex文件进行归并分别生成新的diff dex文件。这里使用了dexlib2库的DexBuilder类，通过dexBuilder.internClassDef()函数在新dex中添加类信息，这里会通过DexClassInfo在newDex中取出类信息，来进行构建差分dex。这里只用到了added和changed的类，忽略了deleted的类。
+
+对于未加固的APK，使用generatePatchInfoFile()函数，这里就完全根据dex文件格式进行了，比较每个setion是否相同。
 
 #### <span id="DexPatchApplier">DexPatchApplier</span>
 
